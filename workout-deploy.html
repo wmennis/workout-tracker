@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Workout Tracker</title>
+  <link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;Workout Tracker&quot;,&quot;short_name&quot;:&quot;Workout&quot;,&quot;start_url&quot;:&quot;.&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%231e3a8a&quot;,&quot;theme_color&quot;:&quot;%231e3a8a&quot;}">
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    input[type="number"] { font-size: 16px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const muscleGroups = ['Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Core'];
+
+    const exercisesByGroup = {
+      Chest: ['Bench Press', 'Incline Press', 'Dumbbell Flyes', 'Push-ups', 'Cable Flyes'],
+      Back: ['Deadlift', 'Pull-ups', 'Barbell Row', 'Lat Pulldown', 'T-Bar Row'],
+      Shoulders: ['Overhead Press', 'Lateral Raises', 'Front Raises', 'Face Pulls', 'Shrugs', 'Lateral Rotations'],
+      Arms: ['Barbell Curl', 'Tricep Dips', 'Hammer Curls', 'Skull Crushers', 'Preacher Curls'],
+      Legs: ['Squat', 'Leg Press', 'Lunges', 'Leg Curls', 'Calf Raises'],
+      Core: ['Planks', 'Crunches', 'Russian Twists', 'Leg Raises', 'Ab Wheel', 'Side Crunch']
+    };
+
+    function App() {
+      const [view, setView] = useState('select');
+      const [selectedGroup, setSelectedGroup] = useState('');
+      const [currentWorkout, setCurrentWorkout] = useState([]);
+      const [workoutHistory, setWorkoutHistory] = useState([]);
+      const [goals, setGoals] = useState({});
+      const [showGoalModal, setShowGoalModal] = useState(false);
+      const [goalExercise, setGoalExercise] = useState('');
+      const [goalInput, setGoalInput] = useState('');
+
+      useEffect(() => {
+        try {
+          const saved = localStorage.getItem('workoutHistory');
+          if (saved) setWorkoutHistory(JSON.parse(saved));
+          const savedGoals = localStorage.getItem('workoutGoals');
+          if (savedGoals) setGoals(JSON.parse(savedGoals));
+        } catch (e) {}
+      }, []);
+
+      const startWorkout = (group) => {
+        setSelectedGroup(group);
+        setCurrentWorkout([]);
+        setView('workout');
+      };
+
+      const addExercise = (exercise) => {
+        setCurrentWorkout([...currentWorkout, { exercise, sets: [{ weight: '', reps: '' }] }]);
+      };
+
+      const updateSet = (exIdx, setIdx, field, value) => {
+        const updated = [...currentWorkout];
+        updated[exIdx].sets[setIdx][field] = value;
+        setCurrentWorkout(updated);
+      };
+
+      const addSet = (exIdx) => {
+        const updated = [...currentWorkout];
+        updated[exIdx].sets.push({ weight: '', reps: '' });
+        setCurrentWorkout(updated);
+      };
+
+      const removeSet = (exIdx, setIdx) => {
+        const updated = [...currentWorkout];
+        if (updated[exIdx].sets.length > 1) {
+          updated[exIdx].sets.splice(setIdx, 1);
+          setCurrentWorkout(updated);
+        }
+      };
+
+      const calcVolume = (sets) => sets.reduce((t, s) => t + (parseFloat(s.weight) || 0) * (parseFloat(s.reps) || 0), 0);
+
+      const saveWorkout = () => {
+        const workout = {
+          date: new Date().toISOString(),
+          group: selectedGroup,
+          exercises: currentWorkout.map(ex => ({ ...ex, volume: calcVolume(ex.sets) }))
+        };
+        const updated = [workout, ...workoutHistory];
+        setWorkoutHistory(updated);
+        try { localStorage.setItem('workoutHistory', JSON.stringify(updated)); } catch (e) {}
+        setView('select');
+      };
+
+      const getPrev = (exercise) => {
+        for (let w of workoutHistory) {
+          const ex = w.exercises.find(e => e.exercise === exercise);
+          if (ex) return ex;
+        }
+        return null;
+      };
+
+      const saveGoal = () => {
+        const updated = { ...goals, [goalExercise]: goalInput };
+        setGoals(updated);
+        try { localStorage.setItem('workoutGoals', JSON.stringify(updated)); } catch (e) {}
+        setShowGoalModal(false);
+        setGoalExercise('');
+        setGoalInput('');
+      };
+
+      const styles = {
+        container: { minHeight: '100vh', background: 'linear-gradient(135deg, #1e3a8a 0%, #7c3aed 100%)', padding: 20 },
+        inner: { maxWidth: 500, margin: '0 auto' },
+        header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+        title: { color: 'white', fontSize: 26, fontWeight: 'bold' },
+        btn: { padding: '10px 18px', background: 'rgba(255,255,255,0.2)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 15 },
+        grid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 },
+        groupBtn: { padding: 28, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 12, color: 'white', fontSize: 18, fontWeight: 600, cursor: 'pointer' },
+        card: { background: 'rgba(255,255,255,0.1)', borderRadius: 12, padding: 16, marginBottom: 12 },
+        input: { flex: 1, padding: 12, background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, color: 'white', fontSize: 16, width: '100%' },
+        saveBtn: { width: '100%', padding: 18, background: '#22c55e', border: 'none', borderRadius: 12, color: 'white', fontSize: 18, fontWeight: 'bold', cursor: 'pointer', marginTop: 12 }
+      };
+
+      if (view === 'select') {
+        return (
+          <div style={styles.container}>
+            <div style={styles.inner}>
+              <div style={styles.header}>
+                <div style={styles.title}>💪 Workout</div>
+                <button style={styles.btn} onClick={() => setView('history')}>History</button>
+              </div>
+              <p style={{ color: 'rgba(255,255,255,0.8)', marginBottom: 16, fontSize: 16 }}>Select muscle group:</p>
+              <div style={styles.grid}>
+                {muscleGroups.map(g => (
+                  <button key={g} style={styles.groupBtn} onClick={() => startWorkout(g)}>{g}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if (view === 'history') {
+        return (
+          <div style={styles.container}>
+            <div style={styles.inner}>
+              <div style={styles.header}>
+                <div style={styles.title}>📋 History</div>
+                <button style={styles.btn} onClick={() => setView('select')}>Back</button>
+              </div>
+              {workoutHistory.length === 0 ? (
+                <p style={{ color: 'white', textAlign: 'center', marginTop: 40 }}>No workouts yet. Get started!</p>
+              ) : (
+                workoutHistory.map((w, i) => (
+                  <div key={i} style={styles.card}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                      <span style={{ color: 'white', fontWeight: 600, fontSize: 17 }}>{w.group}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }}>{new Date(w.date).toLocaleDateString()}</span>
+                    </div>
+                    {w.exercises.map((ex, j) => (
+                      <div key={j} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                        <p style={{ color: 'white', fontWeight: 500, marginBottom: 6 }}>{ex.exercise}</p>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {ex.sets.map((s, k) => (
+                            <span key={k} style={{ background: 'rgba(255,255,255,0.15)', padding: '5px 10px', borderRadius: 6, color: 'white', fontSize: 13 }}>{s.weight}lb × {s.reps}</span>
+                          ))}
+                        </div>
+                        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, marginTop: 6 }}>Volume: {ex.volume} lbs</p>
+                      </div>
+                    ))}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div style={styles.container}>
+          <div style={styles.inner}>
+            <div style={styles.header}>
+              <div style={styles.title}>{selectedGroup}</div>
+              <button style={styles.btn} onClick={() => setView('select')}>Cancel</button>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <p style={{ color: 'rgba(255,255,255,0.8)', marginBottom: 10 }}>Add exercise:</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {exercisesByGroup[selectedGroup].map(ex => {
+                  const added = currentWorkout.some(e => e.exercise === ex);
+                  return (
+                    <button key={ex} onClick={() => !added && addExercise(ex)} style={{ padding: '10px 14px', background: added ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, color: added ? 'rgba(255,255,255,0.3)' : 'white', fontSize: 14, cursor: added ? 'default' : 'pointer' }}>+ {ex}</button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {currentWorkout.map((ex, exIdx) => {
+              const prev = getPrev(ex.exercise);
+              const vol = calcVolume(ex.sets);
+              const goal = goals[ex.exercise];
+              return (
+                <div key={exIdx} style={styles.card}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div>
+                      <p style={{ color: 'white', fontWeight: 600, fontSize: 17, marginBottom: 4 }}>{ex.exercise}</p>
+                      {prev && <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13 }}>📈 Last: {prev.sets.length} sets, {prev.volume} lbs</p>}
+                      {goal && <p style={{ color: '#fbbf24', fontSize: 13 }}>🎯 Goal: {goal} lbs {vol >= parseFloat(goal) ? '✓' : ''}</p>}
+                    </div>
+                    <button onClick={() => { setGoalExercise(ex.exercise); setGoalInput(goals[ex.exercise] || ''); setShowGoalModal(true); }} style={{ padding: '6px 10px', background: 'rgba(251,191,36,0.3)', border: 'none', borderRadius: 6, color: '#fef3c7', fontSize: 12, cursor: 'pointer', height: 'fit-content' }}>Set Goal</button>
+                  </div>
+
+                  {ex.sets.map((set, setIdx) => (
+                    <div key={setIdx} style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
+                      <span style={{ color: 'white', width: 45, fontSize: 14 }}>#{setIdx + 1}</span>
+                      <input type="number" inputMode="decimal" placeholder="lbs" value={set.weight} onChange={(e) => updateSet(exIdx, setIdx, 'weight', e.target.value)} style={styles.input} />
+                      <input type="number" inputMode="numeric" placeholder="reps" value={set.reps} onChange={(e) => updateSet(exIdx, setIdx, 'reps', e.target.value)} style={styles.input} />
+                      {ex.sets.length > 1 && <button onClick={() => removeSet(exIdx, setIdx)} style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.4)', border: 'none', borderRadius: 8, color: 'white', cursor: 'pointer', fontSize: 16 }}>×</button>}
+                    </div>
+                  ))}
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
+                    <button onClick={() => addSet(exIdx)} style={{ padding: '10px 16px', background: 'rgba(34,197,94,0.3)', border: 'none', borderRadius: 8, color: 'white', cursor: 'pointer' }}>+ Add Set</button>
+                    <span style={{ color: 'white', fontSize: 15 }}>Volume: <strong>{vol}</strong> lbs</span>
+                  </div>
+                </div>
+              );
+            })}
+
+            {currentWorkout.length > 0 && (
+              <button onClick={saveWorkout} style={styles.saveBtn}>✓ Complete Workout</button>
+            )}
+
+            {showGoalModal && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100 }}>
+                <div style={{ background: 'white', borderRadius: 16, padding: 24, width: '100%', maxWidth: 320 }}>
+                  <h3 style={{ marginBottom: 16, fontSize: 18 }}>Set Goal: {goalExercise}</h3>
+                  <input type="number" inputMode="numeric" placeholder="Target volume (lbs)" value={goalInput} onChange={(e) => setGoalInput(e.target.value)} style={{ width: '100%', padding: 14, border: '2px solid #e5e7eb', borderRadius: 10, marginBottom: 16, fontSize: 16 }} />
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button onClick={saveGoal} style={{ flex: 1, padding: 14, background: '#3b82f6', border: 'none', borderRadius: 10, color: 'white', fontSize: 16, cursor: 'pointer' }}>Save</button>
+                    <button onClick={() => { setShowGoalModal(false); setGoalExercise(''); }} style={{ flex: 1, padding: 14, background: '#e5e7eb', border: 'none', borderRadius: 10, color: '#374151', fontSize: 16, cursor: 'pointer' }}>Cancel</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
